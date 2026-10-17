@@ -1,10 +1,12 @@
 """运行 python app.py 弹出文件选择；也支持命令行参数。"""
-import argparse
-import re
-import subprocess
-import tempfile
-from pathlib import Path
+#引用python自带的库
+import argparse #读取命令行参数
+import re #匹配文本
+import subprocess #启动ffmpeg
+import tempfile #创建临时目录
+from pathlib import Path #处理文件路径
 import imageio_ffmpeg
+#引用其他文件中的函数
 from lyrics import read_lrc, write_ass
 from scene import RainScene
 from adaptive_scene import AdaptiveScene
@@ -14,25 +16,25 @@ from theme import choose_theme, audio_energy
 def choose_file(title, kinds):
     import tkinter as tk
     from tkinter.filedialog import askopenfilename
-    root = tk.Tk()
-    root.withdraw()
+    root = tk.Tk()   #创建根窗口
+    root.withdraw()  #隐藏根窗口
     try:
-        return askopenfilename(title=title, filetypes=kinds)
+        return askopenfilename(title=title, filetypes=kinds)#弹出选择音乐的文件夹
     finally:
         root.destroy()
 
 
 def main():
-    p = argparse.ArgumentParser(description='按歌词和音频自动选画面 + LRC 同步字幕 → MP4')
+    p = argparse.ArgumentParser(description='按歌词和音频自动选画面 + LRC 同步字幕 → MP4')#接下来的add是将来终端可以放的参数
     p.add_argument('--audio', help='MP3 / WAV / FLAC 音频路径')
     p.add_argument('--lyrics', help='LRC 歌词路径')
     p.add_argument('--output', help='输出路径；默认使用音频文件名，避免覆盖另一首歌')
     p.add_argument('--offset', type=float, default=0, help='字幕延迟秒数，负数为提前')
-    p.add_argument('--preview', type=float, help='只导出前 N 秒用于预览')
+    p.add_argument('--preview', type=float, help='只导出前 N 秒用于预览')#eg:终端输入--preview 30 会存入args.preview
     p.add_argument('--style', choices=('auto','rain','solace','dream','warmth'), default='auto', help='画面风格，默认根据歌词自动选择')
     p.add_argument('--width', type=int, default=1280)
     p.add_argument('--height', type=int, default=720)
-    args = p.parse_args()
+    args = p.parse_args()#把终端实际设置的参数存进args
     audio = args.audio or choose_file('选择音乐', [('音频','*.mp3 *.wav *.flac *.m4a')])
     if not audio:
         return
