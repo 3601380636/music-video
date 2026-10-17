@@ -1,68 +1,75 @@
-"""用简单图形绘制雨夜窗景。所有运动按整周期计算，便于无缝循环。"""
+"""柔焦雨夜：青蓝与玫瑰色光晕、玻璃雨痕、水面涟漪。"""
 import math
 import random
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 
 class RainScene:
     def __init__(self, width, height):
         self.w, self.h = width, height
         rng = random.Random(18)
-        self.rain = [(rng.random(), rng.random(), rng.uniform(.015,.05), rng.choice([1,2,3])) for _ in range(140)]
-        base = Image.new('RGB', (width,height))
-        d = ImageDraw.Draw(base)
-        for y in range(height):
-            k = y/height
-            d.line((0,y,width,y), fill=(int(13-5*k),int(29-13*k),int(44-18*k)))
-        glow = Image.new('RGB',(width,height),(0,0,0))
-        g = ImageDraw.Draw(glow)
-        g.ellipse((width*.38,-height*.35,width*1.1,height*.7),fill=(19,53,65))
-        base = Image.blend(base,glow.filter(ImageFilter.GaussianBlur(width*.15)),.35)
-        city = Image.new('RGBA',(width,height))
-        c = ImageDraw.Draw(city)
-        for x in range(-30,width,round(width*.055)):
-            top = rng.randint(int(height*.33),int(height*.57))
-            bw = rng.randint(int(width*.035),int(width*.065))
-            c.rectangle((x,top,x+bw,height*.76), fill=(10,22,30,255))
-            for wx in range(x+7,x+bw-3,10):
-                for wy in range(top+12,int(height*.72),17):
-                    if rng.random()<.32:
-                        c.rectangle((wx,wy,wx+2,wy+4),fill=rng.choice([(181,151,104,180),(99,160,174,160)]))
-        base = Image.alpha_composite(base.convert('RGBA'),city.filter(ImageFilter.GaussianBlur(1.4)))
-        self.base = base
+        self.rain = [(rng.random(), rng.random(), rng.uniform(.025,.10), rng.choice([1,2])) for _ in range(65)]
+        self.rings = [(rng.uniform(.12,.95),rng.uniform(.79,.97),rng.random()) for _ in range(9)]
+        small = Image.new('RGB',(320,180))
+        px = small.load()
+        lights = [(.86,.32,.24,(93,50,67)),(.18,.55,.32,(15,65,76)),(.68,.66,.17,(141,92,72))]
+        for y in range(180):
+            for x in range(320):
+                c = [7.,14.,25.]
+                for cx,cy,r,color in lights:
+                    a = math.exp(-((x/320-cx)**2+(y/180-cy)**2)/(r*r))
+                    for k in range(3):
+                        c[k] += color[k]*a
+                px[x,y] = tuple(int(v) for v in c)
+        bokeh = Image.new('RGBA',small.size)
+        d = ImageDraw.Draw(bokeh)
+        for _ in range(48):
+            x,y = rng.uniform(170,330),rng.uniform(25,145)
+            r = rng.uniform(1.5,7)
+            color = rng.choice([(247,174,156,45),(143,198,211,45),(226,199,160,50)])
+            d.ellipse((x-r,y-r,x+r,y+r),fill=color)
+            d.line((x,y+r+2,x+r*.2,178),fill=(*color[:3],12),width=max(1,int(r)))
+        small = Image.alpha_composite(small.convert('RGBA'),bokeh.filter(ImageFilter.GaussianBlur(2)))
+        self.base = small.resize((width,height),Image.Resampling.BICUBIC)
+        grain = Image.new('RGBA',(320,180))
+        grain.putdata([(235,222,212,rng.randrange(0,9)) for _ in range(320*180)])
+        self.base = Image.alpha_composite(self.base,grain.resize((width,height)))
+        self.glow = Image.new('RGBA',(width,height))
+        gd = ImageDraw.Draw(self.glow)
+        gd.ellipse((width*.58,height*.08,width*1.12,height*.85),fill=(210,111,133,10))
+        self.glow = self.glow.filter(ImageFilter.GaussianBlur(width*.10))
 
     def frame(self, t, period=8):
         w,h = self.w,self.h
+        phase = (t/period)%1
         im = self.base.copy()
-        layer = Image.new('RGBA', im.size)
+        glow = self.glow.copy()
+        glow.putalpha(glow.getchannel('A').point(lambda a: int(a*(.65+.35*math.sin(2*math.pi*phase)))))
+        im = Image.alpha_composite(im,glow)
+        layer = Image.new('RGBA',im.size)
         d = ImageDraw.Draw(layer)
-        phase = t/period
         for x,y,length,speed in self.rain:
             py = (y+phase*speed)%1
-            px = x + .002*math.sin(2*math.pi*phase)
+            alpha = 33 if .12 < x < .62 else 65
             for wrap in [-1,0,1]:
-                yy = (py+wrap)*h
-                d.line((px*w,yy,px*w-3,yy+length*h),fill=(155,198,208,65),width=1)
-                d.ellipse((px*w-1,yy+length*h-2,px*w+1,yy+length*h+2),fill=(175,213,220,85))
-        im = Image.alpha_composite(im,layer)
-        d = ImageDraw.Draw(im)
-        # 窗框、窗台、杯子：保持克制的前景剪影。
-        d.rectangle((0,0,w*.035,h),fill=(7,14,21))
-        d.rectangle((w*.965,0,w,h),fill=(7,14,21))
-        d.rectangle((w*.29,0,w*.303,h*.77),fill=(8,17,24))
-        d.line((w*.304,0,w*.304,h*.77),fill=(37,54,62),width=2)
-        d.rectangle((0,h*.76,w,h*.785),fill=(30,39,44))
-        d.rectangle((0,h*.785,w,h),fill=(9,17,24))
-        x,y=w*.78,h*.70
-        d.ellipse((x+w*.043,y+h*.01,x+w*.067,y+h*.052),outline=(122,115,99),width=3)
-        d.rounded_rectangle((x,y,x+w*.05,h*.76),radius=5,fill=(135,126,108))
-        d.ellipse((x,y-3,x+w*.05,y+5),fill=(49,43,38))
-        steam = Image.new('RGBA',im.size)
-        sd = ImageDraw.Draw(steam)
-        for j in range(2):
-            pts=[]
-            for n in range(35):
-                u=n/34
-                pts.append((x+w*(.018+j*.017)+math.sin(u*7+phase*2*math.pi+j)*w*.003,y-u*h*.075))
-            sd.line(pts,fill=(205,210,201,45),width=2)
-        return Image.alpha_composite(im,steam.filter(ImageFilter.GaussianBlur(1))).convert('RGB')
+                yy=(py+wrap)*h
+                d.line((x*w,yy,x*w-w*.006,yy+length*h),fill=(191,218,226,alpha),width=max(1,round(w/1280)))
+                d.ellipse((x*w-w*.006-1,yy+length*h-2,x*w-w*.006+1,yy+length*h+2),fill=(220,231,230,alpha))
+        for x,y,start in self.rings:
+            age=(phase+start)%1
+            r=w*(.008+.065*age)
+            a=int(42*math.sin(math.pi*age)**2)
+            d.ellipse((x*w-r,y*h-r*.13,x*w+r,y*h+r*.13),outline=(194,201,210,a),width=1)
+        im=Image.alpha_composite(im,layer)
+        overlay=Image.new('RGBA',im.size)
+        d=ImageDraw.Draw(overlay)
+        margin=w*.065
+        d.line((margin,h*.13,w-margin,h*.13),fill=(222,219,215,45),width=1)
+        d.line((margin,h*.90,w-margin,h*.90),fill=(222,219,215,35),width=1)
+        try:
+            font=ImageFont.truetype('C:/Windows/Fonts/arial.ttf',max(9,round(h*.016)))
+        except OSError:
+            font=ImageFont.load_default()
+        d.text((margin,h*.083),'R A I N   /   A F T E R   H O U R S',font=font,fill=(226,222,217,150))
+        d.text((margin,h*.925),'S O U N D   I N   M O T I O N',font=font,fill=(226,222,217,95))
+        return Image.alpha_composite(im,overlay).convert('RGB')

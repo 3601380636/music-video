@@ -22,6 +22,16 @@ class TimingTests(unittest.TestCase):
         scene = RainScene(320,180)
         self.assertEqual(scene.frame(0).tobytes(),scene.frame(8).tobytes())
 
+    def test_short_line_and_long_line_animation(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as tmp:
+            path = Path(tmp)/'animated.ass'
+            write_ass([(0,'短句'),(.3,'很长的测试句子'*10),(4,'')],path,5,1280,720)
+            content = path.read_text(encoding='utf-8-sig')
+            self.assertIn(r'\fad(100,100)',content)
+            self.assertIn(r'\N',content)
+            self.assertIn(r'\move(',content)
+            self.assertIn('0:00:00.30,0:00:04.00',content)
+
 
 if __name__ == '__main__':
     unittest.main()

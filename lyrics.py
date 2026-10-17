@@ -28,7 +28,7 @@ def stamp(t):
 
 
 def write_ass(rows, path, duration, width, height):
-    size = round(height * .047)
+    size = round(height * .065)
     header = f'''[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
@@ -37,7 +37,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Microsoft YaHei,{size},&H00F7F4EF,&H00FFFFFF,&H00201812,&H80000000,0,0,0,0,100,100,1,0,1,1.2,0,2,60,60,{round(height*.10)},1
+Style: Default,Microsoft YaHei Light,{size},&H00E8F0F6,&H00FFFFFF,&H0030221B,&H90000000,0,0,0,0,100,100,3,0,1,0,1,5,60,60,40,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -49,5 +49,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             continue
         # 禁用歌词中的 ASS 控制字符，保留普通可见文本。
         words = words.replace('\\', '＼').replace('{', '｛').replace('}', '｝')
-        events.append(f'Dialogue: 0,{stamp(start)},{stamp(end)},Default,,0,0,0,,{{\\fad(150,150)}}{words}')
+        # 每四句调整构图；长句缩小并换行。动画时长随短句收缩。
+        layout = (i // 4) % 3
+        x, y, align = [(width*.12,height*.45,4), (width*.50,height*.50,5), (width*.87,height*.43,6)][layout]
+        font_size = round(size * (.80 if len(words) > 18 else 1))
+        spacing = max(1,round(width*.0024))
+        limit = max(8, int(width*.72/(font_size+spacing)))
+        words = r'\N'.join(words[n:n+limit] for n in range(0,len(words),limit))
+        ms = max(1,round((end-start)*1000))
+        enter, leave = min(650,ms//3), min(450,ms//3)
+        tags = (f'\\an{align}\\fs{font_size}\\fsp{spacing}'
+                f'\\move({x:.1f},{y+height*.025:.1f},{x:.1f},{y:.1f},0,{enter})'
+                f'\\fad({enter},{leave})\\blur4\\fscx98\\fscy98'
+                f'\\t(0,{enter},\\blur0\\fscx100\\fscy100)'
+                f'\\t({ms-leave},{ms},\\blur5\\fscx102\\fscy102)')
+        events.append(f'Dialogue: 0,{stamp(start)},{stamp(end)},Default,,0,0,0,,{{{tags}}}{words}')
     Path(path).write_text(header + '\n'.join(events), encoding='utf-8-sig')
