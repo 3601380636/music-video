@@ -7,6 +7,8 @@ from pathlib import Path
 import imageio_ffmpeg
 from lyrics import read_lrc, write_ass
 from scene import RainScene
+from adaptive_scene import AdaptiveScene
+from theme import choose_theme, audio_energy
 
 
 def choose_file(title, kinds):
@@ -21,12 +23,13 @@ def choose_file(title, kinds):
 
 
 def main():
-    p = argparse.ArgumentParser(description='雨夜循环背景 + LRC 同步字幕 → MP4')
+    p = argparse.ArgumentParser(description='按歌词和音频自动选画面 + LRC 同步字幕 → MP4')
     p.add_argument('--audio', help='MP3 / WAV / FLAC 音频路径')
     p.add_argument('--lyrics', help='LRC 歌词路径')
-    p.add_argument('--output', default='renders/rain_mv.mp4')
+    p.add_argument('--output', help='输出路径；默认使用音频文件名，避免覆盖另一首歌')
     p.add_argument('--offset', type=float, default=0, help='字幕延迟秒数，负数为提前')
     p.add_argument('--preview', type=float, help='只导出前 N 秒用于预览')
+    p.add_argument('--style', choices=('auto','rain','solace','dream','warmth'), default='auto', help='画面风格，默认根据歌词自动选择')
     p.add_argument('--width', type=int, default=1280)
     p.add_argument('--height', type=int, default=720)
     args = p.parse_args()
@@ -37,7 +40,7 @@ def main():
     if not lyrics:
         return
     audio, lyrics = Path(audio).resolve(), Path(lyrics).resolve()
-    output = Path(args.output).resolve()
+    output = Path(args.output or f'renders/{audio.stem}_歌词视频.mp4').resolve()
     if output in (audio,lyrics):
         raise ValueError('输出路径不能覆盖输入文件。')
     if args.width < 320 or args.height < 180 or args.width%2 or args.height%2:
@@ -53,14 +56,17 @@ def main():
     if args.preview:
         duration = min(duration,args.preview)
     rows = read_lrc(lyrics,args.offset)
+    theme = choose_theme(rows) if args.style == 'auto' else args.style
+    energy = audio_energy(ffmpeg,audio)
+    print(f'画面主题：{theme}；音频强度：{energy:.2f}（仅用于画面运动幅度）',flush=True)
     output.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.rain-mv-', dir=output.parent) as tmp:
         tmp = Path(tmp)
         write_ass(rows,tmp/'lyrics.ass',duration,args.width,args.height)
-        scene = RainScene(args.width,args.height)
+        scene = RainScene(args.width,args.height) if theme == 'rain' else AdaptiveScene(args.width,args.height,theme,energy)
         fps,period = 24,8
         cmd = [ffmpeg,'-hide_banner','-loglevel','error','-y','-f','rawvideo','-vcodec','rawvideo','-pix_fmt','rgb24','-s',f'{args.width}x{args.height}','-r',str(fps),'-i','-','-an','-c:v','libx264','-preset','fast','-crf','20','-pix_fmt','yuv420p',str(tmp/'loop.mp4')]
-        print('正在绘制 8 秒循环雨景……',flush=True)
+        print('正在绘制 8 秒循环背景……',flush=True)
         proc = subprocess.Popen(cmd,stdin=subprocess.PIPE)
         try:
             for frame in range(fps*period):

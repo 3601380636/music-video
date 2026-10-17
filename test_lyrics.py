@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 from lyrics import read_lrc, write_ass
 from scene import RainScene
+from adaptive_scene import AdaptiveScene
+from theme import choose_theme
 
 
 class TimingTests(unittest.TestCase):
@@ -31,6 +33,14 @@ class TimingTests(unittest.TestCase):
             self.assertIn(r'\N',content)
             self.assertIn(r'\move(',content)
             self.assertIn('0:00:00.30,0:00:04.00',content)
+
+    def test_different_lyrics_select_different_art(self):
+        rain = [(1,'雨在窗前下个不停')]
+        solace = [(1,'我听见你的痛苦，给你一个拥抱')]
+        self.assertEqual(choose_theme(rain),'rain')
+        self.assertEqual(choose_theme(solace),'solace')
+        art = AdaptiveScene(320,180,'solace',.5)
+        self.assertEqual(art.frame(0).tobytes(),art.frame(8).tobytes())
 
 
 if __name__ == '__main__':

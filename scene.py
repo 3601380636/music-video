@@ -49,7 +49,7 @@ class RainScene:
         layer = Image.new('RGBA',im.size)
         d = ImageDraw.Draw(layer)
         for x,y,length,speed in self.rain:
-            py = (y+phase*speed)%1
+            py = (y+phase)%1
             alpha = 33 if .12 < x < .62 else 65
             for wrap in [-1,0,1]:
                 yy=(py+wrap)*h
