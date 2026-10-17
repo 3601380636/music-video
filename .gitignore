@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+media/*
+!media/.gitkeep
+renders/
+*.mp3
+*.flac
+*.wav
+*.ncm
+*.lrc
+*.mp4
+*.ass
